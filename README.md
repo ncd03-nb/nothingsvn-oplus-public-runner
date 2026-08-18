@@ -11,8 +11,8 @@ and uploads the result using the private source repository's existing scripts.
 
 Configure these under **Settings > Secrets and variables > Actions**:
 
-- `PRIVATE_REPO_TOKEN`: fine-grained PAT restricted to
-  `ncd03-nb/nothingsvn_oplus-pt.toolbuild`, with only **Contents: Read-only**.
+- `PRIVATE_REPO_DEPLOY_KEY`: private half of an SSH deploy key whose public half
+  is installed read-only on `ncd03-nb/nothingsvn_oplus-pt.toolbuild`.
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_CHANNEL_ID`
 - `GDRIVE_FOLDER_ID`
