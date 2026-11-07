@@ -53,6 +53,15 @@ jobs:
       BUILDER_ID: ${{ inputs.builder_id }}
       DEBIAN_FRONTEND: noninteractive
     steps:
+      - name: Set up toolbuild Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Verify Python for regular and privileged build commands
+        run: |
+          set -euo pipefail
+          python3 -c 'import sys; assert sys.version_info[:2] == (3, 12); print("Runner Python:", sys.version)'
+          sudo -E env PATH="$PATH" LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}" python3 -c 'import sys; assert sys.version_info[:2] == (3, 12); print("Privileged build Python:", sys.version)'
       # APT/initramfs must finish while the runner's root filesystem still has
       # space. The disk-space action shrinks that filesystem for its LVM mount.
       - name: Clean unused runner files before installing dependencies
@@ -86,7 +95,7 @@ jobs:
           if python3 -m pip install --help | grep -q -- '--break-system-packages'; then
             pip_args+=(--break-system-packages)
           fi
-          python3 -m pip install "${pip_args[@]}" ConfigObj telebot setuptools lz4 zstandard requests google-api-python-client google-auth
+          python3 -m pip install "${pip_args[@]}" ConfigObj telebot setuptools pyelftools lz4 zstandard requests google-api-python-client google-auth
           sudo dpkg --audit
           sudo apt-get clean
           sudo rm -rf /var/lib/apt/lists/*
@@ -135,13 +144,20 @@ jobs:
           assert folder['mimeType']=='application/vnd.google-apps.folder' and folder['capabilities']['canAddChildren']
           print('Xiaomi source, dependencies and writable Drive destination: OK')
           PY
-      - name: Verify Python font compatibility and private notification routing
+      - name: Verify NTManager Python compatibility and private notification routing
         working-directory: source
         run: |
           set -euo pipefail
           python3 -m unittest discover -s tests -p test_notify.py -v
-          python3 - <<'PY'
+          sudo -E env PATH="$PATH" LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}" python3 - <<'PY'
           import hashlib, importlib.util, pathlib, sys, tempfile
+          import lz4, zstandard, requests, telebot, configobj, elftools, google.auth
+          assert sys.version_info[:2] == (3, 12)
+          paths=sorted(pathlib.Path('bin/package/NTManager').rglob('*.py'))
+          assert paths, 'NTManager Python patches are missing'
+          for patch in paths:
+              compile(patch.read_bytes(),str(patch),'exec')
+          print('NTManager patch syntax: OK;',len(paths),'files; Python',sys.version.split()[0])
           path=pathlib.Path('bin/package/NTManager/system-fonts/install.py')
           spec=importlib.util.spec_from_file_location('ntfonts',path)
           module=importlib.util.module_from_spec(spec)
@@ -163,21 +179,21 @@ jobs:
         run: |
           set -euo pipefail
           sudo chmod 777 -R .
-          sudo -E bash build.sh "$INPUT_URL" "$SOURCE_REPOSITORY" xiaomi "$BUILDER_NAME" "$BUILDER_ID" 2>&1 | tee -a build_action.log
+          sudo -E env PATH="$PATH" LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}" bash build.sh "$INPUT_URL" "$SOURCE_REPOSITORY" xiaomi "$BUILDER_NAME" "$BUILDER_ID" 2>&1 | tee -a build_action.log
       - name: Pack ROM
         if: ${{ !inputs.check_only }}
         working-directory: source
         run: |
           set -euo pipefail
           python3 notify.py pack "$SOURCE_REPOSITORY" "$INPUT_URL" xiaomi "$BUILDER_NAME" "$BUILDER_ID"
-          sudo -E bash packROM.sh 2>&1 | tee -a build_action.log
+          sudo -E env PATH="$PATH" LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}" bash packROM.sh 2>&1 | tee -a build_action.log
       - name: Upload ROM to Drive
         if: ${{ !inputs.check_only }}
         working-directory: source
         run: |
           set -euo pipefail
           python3 notify.py upload "$SOURCE_REPOSITORY" "$INPUT_URL" xiaomi "$BUILDER_NAME" "$BUILDER_ID"
-          sudo -E bash uploadROM.sh 2>&1 | tee -a build_action.log
+          sudo -E env PATH="$PATH" LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}" bash uploadROM.sh 2>&1 | tee -a build_action.log
       - name: Send success notification
         if: ${{ success() && !inputs.check_only }}
         working-directory: source

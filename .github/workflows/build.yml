@@ -61,6 +61,15 @@ jobs:
       BUILD_MODE: ${{ inputs.build_mode }}
 
     steps:
+      - name: Set up toolbuild Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Verify Python for regular and privileged build commands
+        run: |
+          set -euo pipefail
+          python3 -c 'import sys; assert sys.version_info[:2] == (3, 12); print("Runner Python:", sys.version)'
+          sudo -E env PATH="$PATH" LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}" python3 -c 'import sys; assert sys.version_info[:2] == (3, 12); print("Privileged build Python:", sys.version)'
       - name: Clean unused runner files
         run: |
           docker rmi $(docker images -q) || true
@@ -74,7 +83,7 @@ jobs:
         uses: easimon/maximize-build-space@c28619d8999a147d5e09c1199f84ff6af6ad5794
         with:
           swap-size-mb: 256
-          root-reserve-mb: 512
+          root-reserve-mb: 4096
           remove-dotnet: 'true'
           remove-android: 'true'
           remove-haskell: 'true'
@@ -107,8 +116,22 @@ jobs:
           java-version: '17'
 
       - name: Install Python dependencies
-        run: pip install requests google-api-python-client google-auth
+        run: python3 -m pip install requests google-api-python-client google-auth
 
+      - name: Verify NTManager patch syntax with the build interpreter
+        working-directory: source
+        run: |
+          set -euo pipefail
+          sudo -E env PATH="$PATH" LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}" python3 - <<'PY'
+          import pathlib, sys
+          import requests, google.auth
+          assert sys.version_info[:2] == (3, 12)
+          paths=sorted(pathlib.Path('bin/package/FrameworkPatcher/NTManager').rglob('*.py'))
+          assert paths, 'NTManager Python patches are missing'
+          for path in paths:
+              compile(path.read_bytes(),str(path),'exec')
+          print('NTManager patch syntax: OK;',len(paths),'files; Python',sys.version.split()[0])
+          PY
       - name: Send start notification
         working-directory: source
         run: >-
@@ -120,7 +143,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "[STEP] Install tools" | tee -a build_action.log
-          sudo bash setup.sh 2>&1 | tee -a build_action.log
+          sudo -E env PATH="$PATH" LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}" bash setup.sh 2>&1 | tee -a build_action.log
           df -h . / | tee -a build_action.log
 
       - name: Grant source permissions
@@ -136,21 +159,21 @@ jobs:
           set -euo pipefail
           printf 'install_toolbox=%s\ninstall_mods=%s\n' "$INSTALL_TOOLBOX" "$INSTALL_MODS" > config.env
           echo "[CONFIG] Toolbox=$INSTALL_TOOLBOX, Mods=$INSTALL_MODS" | tee -a build_action.log
-          sudo -E bash build.sh "$INPUT_URL" "$PORTROM_URL" "n" "$SOURCE_REPOSITORY" "oplus" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}" 2>&1 | tee -a build_action.log
+          sudo -E env PATH="$PATH" LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}" bash build.sh "$INPUT_URL" "$PORTROM_URL" "n" "$SOURCE_REPOSITORY" "oplus" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}" 2>&1 | tee -a build_action.log
 
       - name: Pack ROM
         working-directory: source
         run: |
           set -euo pipefail
           python notify.py pack "$SOURCE_REPOSITORY" "${{ inputs.input_url }}" "oplus" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}"
-          sudo -E bash packROM.sh n 2>&1 | tee -a build_action.log
+          sudo -E env PATH="$PATH" LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}" bash packROM.sh n 2>&1 | tee -a build_action.log
 
       - name: Upload ROM to cloud
         working-directory: source
         run: |
           set -euo pipefail
           python notify.py upload "$SOURCE_REPOSITORY" "${{ inputs.input_url }}" "oplus" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}"
-          sudo -E bash uploadROM.sh 2>&1 | tee -a build_action.log
+          sudo -E env PATH="$PATH" LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}" bash uploadROM.sh 2>&1 | tee -a build_action.log
 
       - name: Send success notification
         if: success()

@@ -19,7 +19,6 @@ Configure these under **Settings > Secrets and variables > Actions**:
   is installed read-only on `ncd03-nb/nothingsvn_oplus-pt.toolbuild`.
 - `XIAOMI_REPO_DEPLOY_KEY`: read-only deploy key for the private Xiaomi fork.
 - `TELEGRAM_BOT_TOKEN`
-- `TELEGRAM_CHANNEL_ID`
 - `GDRIVE_FOLDER_ID`
 - `GOOGLE_SERVICE_ACCOUNT_JSON` or `GOOGLE_OAUTH_CREDENTIALS_JSON`, according to
   the authentication method used by the private upload script.
@@ -41,3 +40,17 @@ ordering could fail with `mkinitramfs: No space left on device` and dpkg exit 1.
 
 Set `check_only=true` to verify the real dependency installation, private
 checkout and writable Drive destination without downloading or building a ROM.
+
+## Build Python
+
+Both public workflows select Python 3.12 with `actions/setup-python`. Dependency
+installation uses `python3 -m pip`, and privileged build commands explicitly
+preserve the selected Python through `sudo -E env`, passing both `PATH` and the selected interpreter's
+`LD_LIBRARY_PATH`. The private
+forks preserve that PATH for nested privileged image extraction as well.
+Ubuntu keeps its system Python for APT.
+
+Before building a ROM, the workflows compile-check the NTManager Python patches
+with the same privileged interpreter used for the build. This includes the
+HyperOS assistant patch's Python 3.12 f-string syntax. The OS filesystem retains
+4 GiB to accommodate the selected interpreter and dependencies.
