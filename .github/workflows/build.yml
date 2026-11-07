@@ -21,6 +21,12 @@ on:
         required: false
         type: boolean
         default: true
+      build_mode:
+        description: Deliver a flash package, OTA, or both
+        required: false
+        type: choice
+        options: [fastboot, ota, both]
+        default: fastboot
       builder_name:
         description: Builder name
         required: false
@@ -41,7 +47,7 @@ jobs:
     # Pin Jammy instead of following ubuntu-latest (currently Noble). Jammy's
     # APT mirrors are more stable for this dependency-heavy ROM build.
     runs-on: ubuntu-22.04
-    timeout-minutes: 180
+    timeout-minutes: 330
     env:
       SOURCE_REPOSITORY: ncd03-nb/nothingsvn_oplus-pt.toolbuild
       SOURCE_DIR: ${{ github.workspace }}/source
@@ -53,6 +59,7 @@ jobs:
       GOOGLE_OAUTH_CREDENTIALS_JSON: ${{ secrets.GOOGLE_OAUTH_CREDENTIALS_JSON }}
       INSTALL_TOOLBOX: ${{ inputs.install_toolbox }}
       INSTALL_MODS: ${{ inputs.install_mods }}
+      BUILD_MODE: ${{ inputs.build_mode }}
 
     steps:
       - name: Clean unused runner files
@@ -137,7 +144,7 @@ jobs:
         run: |
           set -euo pipefail
           python notify.py pack "$SOURCE_REPOSITORY" "${{ inputs.input_url }}" "oplus" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}"
-          sudo bash packROM.sh n 2>&1 | tee -a build_action.log
+          sudo -E bash packROM.sh n 2>&1 | tee -a build_action.log
 
       - name: Upload ROM to cloud
         working-directory: source
