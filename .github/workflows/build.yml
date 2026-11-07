@@ -52,7 +52,6 @@ jobs:
       SOURCE_REPOSITORY: ncd03-nb/nothingsvn_oplus-pt.toolbuild
       SOURCE_DIR: ${{ github.workspace }}/source
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-      TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
       TELEGRAM_BUILD_ID: ${{ inputs.request_id }}
       GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
       GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
@@ -180,8 +179,8 @@ jobs:
           if [[ -f "$SOURCE_DIR/notify.py" ]]; then
             cd "$SOURCE_DIR"
             python notify.py "$status" "$SOURCE_REPOSITORY" "${{ inputs.input_url }}" "oplus" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}"
-          elif [[ -n "$TELEGRAM_BOT_TOKEN" ]]; then
-            chat_id="${FALLBACK_BUILDER_ID:-$TELEGRAM_CHANNEL_ID}"
+          elif [[ -n "$TELEGRAM_BOT_TOKEN" && "$FALLBACK_BUILDER_ID" =~ ^[1-9][0-9]*$ ]]; then
+            chat_id="$FALLBACK_BUILDER_ID"
             curl --fail --silent --show-error --max-time 30 --retry 2 \
               --data-urlencode "chat_id=$chat_id" \
               --data-urlencode "text=$message Build: ${TELEGRAM_BUILD_ID:-unknown}" \

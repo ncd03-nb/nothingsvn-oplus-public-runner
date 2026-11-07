@@ -42,7 +42,6 @@ jobs:
       SOURCE_REPOSITORY: ncd03-nb/nothingsvn_xiaomi-toolbuild
       SOURCE_DIR: ${{ github.workspace }}/source
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-      TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
       TELEGRAM_BUILD_ID: ${{ inputs.request_id }}
       GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
       GOOGLE_OAUTH_CREDENTIALS_JSON: ${{ secrets.GOOGLE_OAUTH_CREDENTIALS_JSON }}
@@ -135,6 +134,24 @@ jobs:
               folder=json.load(r)
           assert folder['mimeType']=='application/vnd.google-apps.folder' and folder['capabilities']['canAddChildren']
           print('Xiaomi source, dependencies and writable Drive destination: OK')
+          PY
+      - name: Verify Python font compatibility and private notification routing
+        working-directory: source
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p test_notify.py -v
+          python3 - <<'PY'
+          import hashlib, importlib.util, pathlib, sys, tempfile
+          path=pathlib.Path('bin/package/NTManager/system-fonts/install.py')
+          spec=importlib.util.spec_from_file_location('ntfonts',path)
+          module=importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          with tempfile.TemporaryDirectory() as directory:
+              fixture=pathlib.Path(directory)/'framework.jar'
+              for data in (b'',b'\x00\xffjar\r\n',bytes(range(256))*8193):
+                  fixture.write_bytes(data)
+                  assert module.sha(fixture)==hashlib.sha256(data).hexdigest()
+          print('Font SHA-256 compatibility: OK; Python',sys.version.split()[0])
           PY
       - name: Send start notification
         if: ${{ !inputs.check_only }}
