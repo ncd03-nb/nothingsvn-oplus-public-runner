@@ -201,8 +201,8 @@ jobs:
           PORTROM_URL: ${{ inputs.portrom_url }}
         run: |
           set -euo pipefail
-          printf 'install_toolbox=%s\ninstall_mods=%s\n' "$INSTALL_TOOLBOX" "$INSTALL_MODS" > config.env
-          echo "[CONFIG] Toolbox=$INSTALL_TOOLBOX, Mods=$INSTALL_MODS" | tee -a build_action.log
+          printf 'install_toolbox=%s\ninstall_mods=%s\nbuild_mode=%s\n' "$INSTALL_TOOLBOX" "$INSTALL_MODS" "$BUILD_MODE" > config.env
+          echo "[CONFIG] Toolbox=$INSTALL_TOOLBOX, Mods=$INSTALL_MODS, Mode=$BUILD_MODE" | tee -a build_action.log
           sudo -E env PATH="$PATH" LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}" bash build.sh "$INPUT_URL" "$PORTROM_URL" "n" "$SOURCE_REPOSITORY" "oplus" "${{ inputs.builder_name }}" "${{ inputs.builder_id }}" 2>&1 | tee -a build_action.log
 
       - name: Pack ROM
